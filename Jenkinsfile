@@ -27,9 +27,9 @@ pipeline {
         //backup before deploying
         sh '''
             set -eux
-            sudo rm -rf /var/www/html/*
-            # Backup current web root (don’t fail if it doesn’t exist)
-            sudo cp -r . /var/www/html/
+              sudo rm -rf /var/www/html/*
+              # Backup current web root (don’t fail if it doesn’t exist)
+              sudo cp -r . /var/www/html/
         '''
       }
     }
@@ -65,10 +65,13 @@ pipeline {
     }
     always {
       sh '''
-      set +e
-        sudo rm -rf /var/www/html/* || true
-        sudo apt-get remove -y apache2 || true
+       set +e
+        echo "Cleaning up Apache installation..."
+        sudo systemctl stop apache2 || true
+        sudo apt-get purge -y apache2 apache2-bin || true
         sudo apt-get autoremove -y || true
+        sudo rm -rf /var/www/html /var/lib/apache2 /etc/apache2 /var/log/apache2 || true
+        echo "Cleanup done."
       '''
     }
   }
