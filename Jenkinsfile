@@ -29,7 +29,7 @@ pipeline {
             set -eux
             sudo rm -rf /var/www/html/*
             # Backup current web root (don’t fail if it doesn’t exist)
-            sudo cp -r /var/www/html /var/www/html.backup || true
+            sudo cp -r . /var/www/html/
         '''
       }
     }
