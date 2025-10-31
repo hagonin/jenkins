@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jenkins + Spring Boot: Practical CI/CD Guide</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --fg: #e5e7eb;
+            --muted: #94a3b8;
+            --accent: #22d3ee;
+            --card: #111827;
+            --code: #0b1020
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--fg);
+            font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none
+        }
+
+        a:hover {
+            text-decoration: underline
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px
+        }
+
+        header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px
+        }
+
+        h1 {
+            font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+            margin: 0
+        }
+
+        .tag {
+            border: 1px solid #1f2937;
+            border-radius: 999px;
+            padding: .25rem .6rem;
+            color: var(--muted);
+            background: #0b1220
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid #1f2937;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 16px 0
+        }
+
+        h2 {
+            margin: 0 0 12px 0;
+            font-size: 1.25rem
+        }
+
+        h3 {
+            margin-top: 20px;
+            margin-bottom: 6px;
+            font-size: 1.05rem;
+            color: #cbd5e1
+        }
+
+        .toc a {
+            display: block;
+            padding: 6px 8px;
+            border-radius: 8px;
+            color: var(--muted)
+        }
+
+        .toc a:hover {
+            background: #0b1220;
+            color: var(--fg)
+        }
+
+        code,
+        kbd {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
+        }
+
+        pre {
+            background: var(--code);
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 14px;
+            overflow: auto
+        }
+
+        .two {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px
+        }
+
+        @media (min-width:900px) {
+            .two {
+                grid-template-columns: 270px 1fr
+            }
+        }
+
+        .tip {
+            border-left: 4px solid var(--accent);
+            padding: 10px 12px;
+            background: #0b1220;
+            color: #a5b4fc;
+            border-radius: 8px
+        }
+
+        .kbd {
+            border: 1px solid #1f2937;
+            border-bottom-width: 3px;
+            border-radius: 6px;
+            padding: .1rem .35rem;
+            background: #0b1220
+        }
+
+        .footer {
+            opacity: .7;
+            margin-top: 28px
+        }
+
+        .copy {
+            float: right;
+            font-size: .8rem;
+            border: 1px solid #1f2937;
+            background: #0b1220;
+            color: var(--muted);
+            padding: 2px 8px;
+            border-radius: 6px;
+            cursor: pointer
+        }
+    </style>
+    <script>
+        function copy(el) {
+            const pre = el.parentElement.querySelector('code').innerText;
+            navigator.clipboard.writeText(pre).then(() => { el.innerText = 'Copied!'; setTimeout(() => el.innerText = 'Copy', 1200) });
+        }
+    </script>
+</head>
+
+<body>
+    <div class="wrap">
+        <header>
+            <h1>Jenkins + Spring Boot: Practical CI/CD Guide</h1>
+            <span class="tag">Java 21 • Maven • Docker • JUnit</span>
+        </header>
+
+        <div class="two">
+            <nav class="card toc">
+                <h2>Contents</h2>
+                <a href="#prereq">1. Prerequisites</a>
+                <a href="#job">2. Create a Jenkins Pipeline Job</a>
+                <a href="#jenkinsfile">3. Jenkinsfile (Maven)</a>
+                <a href="#docker">4. Optional: Build a Docker image</a>
+                <a href="#quality">5. Tests & Code Quality</a>
+                <a href="#env">6. Managing Secrets & Env Vars</a>
+                <a href="#deploy">7. Deployment Patterns</a>
+                <a href="#tips">8. Troubleshooting & Tips</a>
+            </nav>
+
+            <main>
+                <section id="prereq" class="card">
+                    <h2>1) Prerequisites</h2>
+                    <ul>
+                        <li>Jenkins LTS with plugins: <b>Pipeline</b>, <b>Git</b>, <b>Credentials</b>, <b>JUnit</b>,
+                            <b>OWASP Dependency-Check</b> (optional), <b>Docker</b> (if building images).</li>
+                        <li>Agent with: Java 21, Maven 3.9+, optional Docker CLI/daemon.</li>
+                        <li>Repository layout (example): <code>pom.xml</code>, <code>src/main/java</code>,
+                            <code>src/test/java</code>, <code>Dockerfile</code>.</li>
+                    </ul>
+                    <div class="tip">Use an <b>agent label</b> to target nodes with Java/Maven/Docker preinstalled.
+                    </div>
+                </section>
+
+                <section id="job" class="card">
+                    <h2>2) Create a Jenkins Pipeline Job</h2>
+                    <ol>
+                        <li><span class="kbd">New Item</span> → <b>Pipeline</b>.</li>
+                        <li>In <b>Pipeline</b>, set <b>Definition</b> = <i>Pipeline script from SCM</i>, SCM =
+                            <i>Git</i>, point to your repo branch.</li>
+                        <li>Save. Jenkins will read <code>Jenkinsfile</code> from your repository.</li>
+                    </ol>
+                </section>
+
+                <section id="jenkinsfile" class="card">
+                    <h2>3) Jenkinsfile (Maven)</h2>
+                    <p>A clean baseline that compiles, tests, packages, archives the JAR, and publishes test reports.
+                    </p>
+                    <button class="copy" onclick="copy(this)">Copy</button>
+                    <pre><code>pipeline {
+  agent any
+
+  environment {
+    MAVEN_OPTS = "-Dmaven.test.failure.ignore=false"
+  }
+
+  options {
+    timestamps()
+    ansiColor('xterm')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build & Unit Tests') {
+      steps {
+        sh '''
+          set -euxo pipefail
+          mvn -B -ntp clean verify
+        '''
+      }
+      post {
+        always {
+          junit '**/target/surefire-reports/*.xml'
+        }
+      }
+    }
+
+    stage('Package') {
+      steps {
+        sh 'mvn -B -ntp package -DskipTests'
+        archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+      }
+    }
+  }
+
+  post {
+    success { echo 'Build ok ' }
+    failure { echo 'Build failed ' }
+  }
+}</code></pre>
+                    <p><b>Why this works</b>: <code>mvn verify</code> runs compilation + tests (+ integration tests if
+                        configured), and <code>junit</code> publishes results in Jenkins.</p>
+                </section>
+
+                <section id="docker" class="card">
+                    <h2>4) Optional: Build a Docker image</h2>
+                    <p>Minimal Dockerfile (multi-stage) for Spring Boot fat JAR:</p>
+                    <button class="copy" onclick="copy(this)">Copy</button>
+                    <pre><code># syntax=docker/dockerfile:1
+FROM eclipse-temurin:21-jre AS runtime
+WORKDIR /app
+COPY target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app/app.jar"]</code></pre>
+
+                    <h3>Pipeline snippet</h3>
+                    <button class="copy" onclick="copy(this)">Copy</button>
+                    <pre><code>stage('Docker Build') {
+  when { expression { return fileExists('Dockerfile') } }
+  steps {
+    sh '''
+      set -euxo pipefail
+      docker build -t myorg/myapp:${BUILD_NUMBER} .
+    '''
+  }
+}</code></pre>
+                </section>
+
+                <section id="quality" class="card">
+                    <h2>5) Tests & Code Quality</h2>
+                    <ul>
+                        <li><b>Unit tests</b>: JUnit + Mockito under <code>src/test/java</code>.</li>
+                        <li><b>Integration tests</b>: use SpringBootTest; trigger with Maven profile.</li>
+                        <li><b>Static analysis</b>: SpotBugs, PMD, Checkstyle, or SonarQube.</li>
+                        <li><b>Dependency security</b>: OWASP Dependency-Check.</li>
+                    </ul>
+                    <h3>SonarQube stage (optional)</h3>
+                    <button class="copy" onclick="copy(this)">Copy</button>
+                    <pre><code>stage('SonarQube') {
+  environment { SONAR_HOST_URL = credentials('sonar-host') }
+  steps {
+    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+      sh 'mvn -B -ntp -DskipTests sonar:sonar -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_HOST_URL'
+    }
+  }
+}</code></pre>
+                </section>
+
+                <section id="env" class="card">
+                    <h2>6) Managing Secrets & Env Vars</h2>
+                    <ul>
+                        <li>Store secrets in <b>Jenkins Credentials</b> (username/password, secret text, or files).</li>
+                        <li>Inject via <code>withCredentials {}</code> then pass to Maven as <code>-D</code> properties
+                            or environment variables.</li>
+                        <li>Avoid committing secrets to Git. Use <code>application.yml</code> with placeholders and
+                            runtime injection.</li>
+                    </ul>
+                    <div class="tip"><b>Pro tip:</b> map secrets to Spring properties (e.g.,
+                        <code>SPRING_DATASOURCE_PASSWORD</code>) when deploying.</div>
+                </section>
+
+                <section id="deploy" class="card">
+                    <h2>7) Deployment Patterns</h2>
+                    <h3>A. Plain JAR on VM</h3>
+                    <pre><code>stage('Deploy VM') {
+  steps {
+    sh '''
+      pkill -f "app.jar" || true
+      nohup java -jar target/*.jar --server.port=8080 &
+      sleep 4
+      curl -f http://localhost:8080/actuator/health
+    '''
+  }
+}</code></pre>
+
+                    <h3>B. Docker container</h3>
+                    <pre><code>stage('Run Container') {
+  steps {
+    sh '''
+      docker rm -f myapp || true
+      docker run -d --name myapp -p 8080:8080 myorg/myapp:${BUILD_NUMBER}
+      sleep 4
+      curl -f http://localhost:8080/actuator/health
+    '''
+  }
+}</code></pre>
+
+                    <h3>C. Kubernetes (helm/kubectl)</h3>
+                    <pre><code>stage('Deploy K8s') {
+  steps {
+    sh '''
+      kubectl apply -f k8s/deployment.yaml
+      kubectl rollout status deploy/myapp -n default
+    '''
+  }
+}</code></pre>
+                </section>
+
+                <section id="tips" class="card">
+                    <h2>8) Troubleshooting & Tips</h2>
+                    <ul>
+                        <li><b>Cache Maven</b>: use a persistent <code>~/.m2</code> on the agent for faster builds.</li>
+                        <li><b>Fail fast</b>: keep <code>set -euxo pipefail</code> in shell steps.</li>
+                        <li><b>Artifacts</b>: always archive <code>target/*.jar</code> so you can download builds.</li>
+                        <li><b>Health checks</b>: enable <code>spring-boot-starter-actuator</code> and call
+                            <code>/actuator/health</code> in pipeline tests.</li>
+                        <li><b>Branches</b>: add conditions to run scans only on main/develop.</li>
+                    </ul>
+                    <p class="footer">© 2025 Jenkins + Spring Boot Quick Guide — You can adapt freely.</p>
+                </section>
+            </main>
+        </div>
+    </div>
+</body>
+
+</html>
