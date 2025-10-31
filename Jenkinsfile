@@ -8,13 +8,10 @@ pipeline {
     stage('Dependancies') {
       steps {
         sh '''
-          set -euxo pipefail
+          set -eux
           sudo apt-get update -y
           sudo apt-get install -y apache2 curl
-          # Start Apache (systemd or SysV as fallback)
-          (sudo systemctl start apache2 || sudo service apache2 start)
-          # Enable on boot (non-fatal if unsupported)
-          (sudo systemctl enable apache2 || true)
+          sudo systemctl start apache2
         '''
       }
     }
@@ -29,9 +26,10 @@ pipeline {
       steps {
         //backup before deploying
         sh '''
-          set -euxo pipefail
-          # Backup current web root (don’t fail if it doesn’t exist)
-          sudo cp -r /var/www/html /var/www/html.backup || true
+            set -eux
+            sudo rm -rf /var/www/html/*
+            # Backup current web root (don’t fail if it doesn’t exist)
+            sudo cp -r /var/www/html /var/www/html.backup || true
         '''
       }
     }
@@ -40,13 +38,8 @@ pipeline {
       steps {
         // Copy workspace files into Apache web root
         sh '''
-          set -euxo pipefail
-          # Clean previous content
-          sudo rm -rf /var/www/html/*
-          # Copy everything from the Jenkins workspace to the web root
-          sudo cp -r . /var/www/html/
-          # Ensure index is world-readable (optional hardening)
-          sudo chmod -R a+rX /var/www/html
+          set -eux
+          curl -f http://localhost/ || curl -f http://127.0.0.1/
         '''
       }
     }
@@ -72,10 +65,8 @@ pipeline {
     }
     always {
       sh '''
-        set -euxo pipefail
-        # Example clean-up: remove copied files (keeps Apache logs/configs)
+      set +e
         sudo rm -rf /var/www/html/* || true
-        # Optionally uninstall Apache if you want a clean VM after each run
         sudo apt-get remove -y apache2 || true
         sudo apt-get autoremove -y || true
       '''
